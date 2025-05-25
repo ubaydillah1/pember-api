@@ -54,14 +54,25 @@ export const getTicketsByUser = async (req: Request, res: Response) => {
 };
 
 export const createTickets = async (req: Request, res: Response) => {
+  console.log(req.body);
   const { user_id, movie_title, show_time, seats, price } = req.body;
+
+  const now = new Date();
+  const parts = show_time.split(":");
+  const fullDate = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    parseInt(parts[0]),
+    parseInt(parts[1])
+  );
 
   try {
     const ticket = await prisma.ticket.create({
       data: {
         userId: user_id,
         movieTitle: movie_title,
-        showTime: new Date(show_time),
+        showTime: fullDate,
         price,
         seats: {
           create: await Promise.all(
@@ -79,8 +90,11 @@ export const createTickets = async (req: Request, res: Response) => {
 
     res.status(201).json({ message: "Ticket created", ticket_id: ticket.id });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create ticket" });
+    console.log(err);
+    res.status(500).json({
+      error: "Failed to create ticketssssssss",
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 };
 
@@ -144,6 +158,47 @@ export const getAllSeats = async (_req: Request, res: Response) => {
 };
 
 export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
+  const { title, show_time, exclude } = req.query;
+
+  if (!title || !show_time) {
+    res.status(400).json({ error: "Missing title or show_time" });
+    return;
+  }
+
+  try {
+    const [hourStr, minuteStr] = String(show_time).split(":");
+    const hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
+    const excludeId = exclude ? parseInt(String(exclude)) : null;
+
+    const seats = await prisma.$queryRawUnsafe(
+      `
+      SELECT s."seatLabel"
+      FROM "Ticket" t
+      JOIN "TicketSeat" ts ON t.id = ts."ticketId"
+      JOIN "Seat" s ON ts."seatId" = s.id
+      WHERE t."movieTitle" = $1
+        AND EXTRACT(HOUR FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $2
+        AND EXTRACT(MINUTE FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $3
+        AND ($4::int IS NULL OR t.id != $4)
+      `,
+      title,
+      hour,
+      minute,
+      excludeId
+    );
+
+    res.json({ data: seats });
+  } catch (err) {
+    console.error("🔥 ERROR fetching booked seats:", err);
+    res.status(500).json({ error: "Failed to fetch booked seats" });
+  }
+};
+
+export const getAllBookedSeatsByTitleAndTime = async (
+  req: Request,
+  res: Response
+) => {
   const { title, show_time } = req.query;
 
   if (!title || !show_time) {
@@ -152,26 +207,28 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
   }
 
   try {
-    const hour = parseInt(String(show_time).split(":")[0]);
-    const minute = parseInt(String(show_time).split(":")[1]);
+    const [hourStr, minuteStr] = String(show_time).split(":");
+    const hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
 
-    const seats = await prisma.ticketSeat.findMany({
-      where: {
-        ticket: {
-          movieTitle: String(title),
-          showTime: {
-            gte: new Date(2000, 0, 1, hour, minute),
-            lt: new Date(2000, 0, 1, hour, minute + 1),
-          },
-        },
-      },
-      include: {
-        seat: true,
-      },
-    });
+    const seats = await prisma.$queryRawUnsafe(
+      `
+      SELECT s."seatLabel"
+      FROM "Ticket" t
+      JOIN "TicketSeat" ts ON t.id = ts."ticketId"
+      JOIN "Seat" s ON ts."seatId" = s.id
+      WHERE t."movieTitle" = $1
+        AND EXTRACT(HOUR FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $2
+        AND EXTRACT(MINUTE FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $3
+      `,
+      title,
+      hour,
+      minute
+    );
 
-    res.json({ data: seats.map((s) => s.seat.seatLabel) });
+    res.json({ data: seats });
   } catch (err) {
+    console.error("🔥 ERROR fetching all booked seats:", err);
     res.status(500).json({ error: "Failed to fetch booked seats" });
   }
 };

@@ -7,6 +7,7 @@ import {
   getTicketsByUser,
   updateTicket,
   getBookedSeatsByShowtime,
+  getAllBookedSeatsByTitleAndTime,
 } from "../controller/UserController";
 
 const router = express.Router();
@@ -18,5 +19,6 @@ router.put("/tickets/:id", updateTicket);
 router.delete("/tickets/:id", deleteTicket);
 router.get("/seats", getAllSeats);
 router.get("/tickets/booked", getBookedSeatsByShowtime);
+router.get("/tickets/booked/strict", getAllBookedSeatsByTitleAndTime);
 
 export default router;

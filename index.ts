@@ -16,6 +16,6 @@ app.get(/.*/, (req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" });
 });
 
-app.listen(3000, () => {
-  console.log("Server Running on http://localhost:3000");
+app.listen(4000, () => {
+  console.log("Server Running on http://localhost:4000");
 });
