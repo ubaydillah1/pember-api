@@ -36,3 +36,5 @@ model TicketSeat {
   seat     Seat   @relation(fields: [seatId], references: [id])
   seatId   Int
 }
+
+
