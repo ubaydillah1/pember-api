@@ -43,3 +43,5 @@ nyc_output/
 # Optional: lockfiles (depending on your package manager policy)
 # yarn.lock
 # package-lock.json
+
+/generated/prisma

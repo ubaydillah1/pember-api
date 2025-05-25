@@ -1,22 +1,26 @@
 import { Request, Response } from "express";
-import pool from "../config/db";
+import { PrismaClient } from "../generated/prisma";
+
+const prisma = new PrismaClient();
 
 export const getAllTickets = async (_req: Request, res: Response) => {
   try {
-    const [rows]: any = await pool.execute(`
-      SELECT 
-        t.id AS ticket_id,
-        t.user_id,
-        t.movie_title,
-        t.show_time,
-        t.price,
-        GROUP_CONCAT(s.seat_label ORDER BY s.seat_label) AS seats
-      FROM tickets t
-      JOIN ticket_seats ts ON t.id = ts.ticket_id
-      JOIN seats s ON ts.seat_id = s.seat_id
-      GROUP BY t.id
-    `);
-    res.json({ data: rows });
+    const tickets = await prisma.ticket.findMany({
+      include: {
+        seats: { include: { seat: true } },
+      },
+    });
+
+    const formatted = tickets.map((t) => ({
+      ticket_id: t.id,
+      user_id: t.userId,
+      movie_title: t.movieTitle,
+      show_time: t.showTime,
+      price: t.price,
+      seats: t.seats.map((s) => s.seat.seatLabel),
+    }));
+
+    res.json({ data: formatted });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch all tickets" });
@@ -25,27 +29,24 @@ export const getAllTickets = async (_req: Request, res: Response) => {
 
 export const getTicketsByUser = async (req: Request, res: Response) => {
   const { userId } = req.params;
-
   try {
-    const [rows]: any = await pool.execute(
-      `
-      SELECT 
-        t.id AS ticket_id,
-        t.user_id,
-        t.movie_title,
-        t.show_time,
-        t.price,
-        GROUP_CONCAT(s.seat_label ORDER BY s.seat_label) AS seats
-      FROM tickets t
-      JOIN ticket_seats ts ON t.id = ts.ticket_id
-      JOIN seats s ON ts.seat_id = s.seat_id
-      WHERE t.user_id = ?
-      GROUP BY t.id
-    `,
-      [userId]
-    );
+    const tickets = await prisma.ticket.findMany({
+      where: { userId },
+      include: {
+        seats: { include: { seat: true } },
+      },
+    });
 
-    res.json({ data: rows });
+    const formatted = tickets.map((t) => ({
+      ticket_id: t.id,
+      user_id: t.userId,
+      movie_title: t.movieTitle,
+      show_time: t.showTime,
+      price: t.price,
+      seats: t.seats.map((s) => s.seat.seatLabel),
+    }));
+
+    res.json({ data: formatted });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch user's tickets" });
@@ -55,40 +56,29 @@ export const getTicketsByUser = async (req: Request, res: Response) => {
 export const createTickets = async (req: Request, res: Response) => {
   const { user_id, movie_title, show_time, seats, price } = req.body;
 
-  const conn = await pool.getConnection();
-  await conn.beginTransaction();
-
   try {
-    const [result]: any = await conn.execute(
-      "INSERT INTO tickets (user_id, movie_title, show_time, price) VALUES (?, ?, ?, ?)",
-      [user_id, movie_title, show_time, price]
-    );
+    const ticket = await prisma.ticket.create({
+      data: {
+        userId: user_id,
+        movieTitle: movie_title,
+        showTime: new Date(show_time),
+        price,
+        seats: {
+          create: await Promise.all(
+            seats.map(async (label: string) => {
+              const seat = await prisma.seat.findUnique({
+                where: { seatLabel: label },
+              });
+              if (!seat) throw new Error(`Seat ${label} not found`);
+              return { seatId: seat.id };
+            })
+          ),
+        },
+      },
+    });
 
-    const ticketId = result.insertId;
-
-    for (const seat_label of seats) {
-      const [seatRows]: any = await conn.execute(
-        "SELECT seat_id FROM seats WHERE seat_label = ?",
-        [seat_label]
-      );
-
-      if (seatRows.length === 0) continue;
-
-      const seat_id = seatRows[0].seat_id;
-
-      await conn.execute(
-        "INSERT INTO ticket_seats (ticket_id, seat_id) VALUES (?, ?)",
-        [ticketId, seat_id]
-      );
-    }
-
-    await conn.commit();
-    conn.release();
-
-    res.status(201).json({ message: "Ticket created successfully" });
+    res.status(201).json({ message: "Ticket created", ticket_id: ticket.id });
   } catch (err) {
-    await conn.rollback();
-    conn.release();
     console.error(err);
     res.status(500).json({ error: "Failed to create ticket" });
   }
@@ -98,50 +88,45 @@ export const updateTicket = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { movie_title, show_time, price, seats } = req.body;
 
-  const conn = await pool.getConnection();
-  await conn.beginTransaction();
-
   try {
-    await conn.execute(
-      "UPDATE tickets SET movie_title = ?, show_time = ?, price = ? WHERE id = ?",
-      [movie_title, show_time, price, id]
-    );
+    await prisma.ticket.update({
+      where: { id: Number(id) },
+      data: {
+        movieTitle: movie_title,
+        showTime: new Date(show_time),
+        price,
+        seats: {
+          deleteMany: {},
+        },
+      },
+    });
 
-    await conn.execute("DELETE FROM ticket_seats WHERE ticket_id = ?", [id]);
-
-    for (const seat_label of seats) {
-      const [seatRows]: any = await conn.execute(
-        "SELECT seat_id FROM seats WHERE seat_label = ?",
-        [seat_label]
-      );
-      if (seatRows.length === 0) continue;
-
-      const seat_id = seatRows[0].seat_id;
-
-      await conn.execute(
-        "INSERT INTO ticket_seats (ticket_id, seat_id) VALUES (?, ?)",
-        [id, seat_id]
-      );
-    }
-
-    await conn.commit();
-    conn.release();
+    await prisma.ticketSeat.createMany({
+      data: await Promise.all(
+        seats.map(async (label: string) => {
+          const seat = await prisma.seat.findUnique({
+            where: { seatLabel: label },
+          });
+          if (!seat) throw new Error(`Seat ${label} not found`);
+          return { ticketId: Number(id), seatId: seat.id };
+        })
+      ),
+    });
 
     res.json({ message: "Ticket updated successfully" });
   } catch (err) {
-    await conn.rollback();
-    conn.release();
     console.error(err);
     res.status(500).json({ error: "Failed to update ticket" });
   }
 };
 
-/** ✅ DELETE TICKET */
 export const deleteTicket = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    await pool.execute("DELETE FROM tickets WHERE id = ?", [id]);
+    await prisma.ticket.delete({
+      where: { id: Number(id) },
+    });
     res.json({ message: "Ticket deleted successfully" });
   } catch (err) {
     console.error(err);
@@ -151,8 +136,8 @@ export const deleteTicket = async (req: Request, res: Response) => {
 
 export const getAllSeats = async (_req: Request, res: Response) => {
   try {
-    const [rows] = await pool.execute("SELECT seat_label FROM seats");
-    res.json({ data: rows });
+    const seats = await prisma.seat.findMany({ select: { seatLabel: true } });
+    res.json({ data: seats });
   } catch (err) {
     res.status(500).json({ error: "Failed to get seats" });
   }
@@ -166,14 +151,21 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
     return;
   }
 
-  const [rows] = await pool.execute(
-    `SELECT s.seat_label
-     FROM tickets t
-     JOIN ticket_seats ts ON t.id = ts.ticket_id
-     JOIN seats s ON ts.seat_id = s.seat_id
-     WHERE t.movie_title = ? AND t.show_time = ?`,
-    [title, show_time]
-  );
+  try {
+    const seats = await prisma.ticketSeat.findMany({
+      where: {
+        ticket: {
+          movieTitle: String(title),
+          showTime: new Date(String(show_time)),
+        },
+      },
+      include: {
+        seat: true,
+      },
+    });
 
-  res.json({ data: rows });
+    res.json({ data: seats.map((s) => s.seat.seatLabel) });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch booked seats" });
+  }
 };
