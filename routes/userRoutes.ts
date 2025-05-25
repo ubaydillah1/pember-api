@@ -7,7 +7,7 @@ import {
   getTicketsByUser,
   updateTicket,
   getBookedSeatsByShowtime,
-} from "../controller/userController";
+} from "../controller/UserController";
 
 const router = express.Router();
 

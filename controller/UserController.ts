@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import pool from "../config/db";
 
-/** ✅ GET ALL TICKETS (with seats) */
 export const getAllTickets = async (_req: Request, res: Response) => {
   try {
     const [rows]: any = await pool.execute(`
@@ -24,7 +23,6 @@ export const getAllTickets = async (_req: Request, res: Response) => {
   }
 };
 
-/** ✅ GET TICKETS BY USER ID */
 export const getTicketsByUser = async (req: Request, res: Response) => {
   const { userId } = req.params;
 
@@ -54,7 +52,6 @@ export const getTicketsByUser = async (req: Request, res: Response) => {
   }
 };
 
-/** ✅ CREATE TICKET (with multiple seats) */
 export const createTickets = async (req: Request, res: Response) => {
   const { user_id, movie_title, show_time, seats, price } = req.body;
 
@@ -97,7 +94,6 @@ export const createTickets = async (req: Request, res: Response) => {
   }
 };
 
-/** ✅ UPDATE TICKET */
 export const updateTicket = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { movie_title, show_time, price, seats } = req.body;
@@ -111,10 +107,8 @@ export const updateTicket = async (req: Request, res: Response) => {
       [movie_title, show_time, price, id]
     );
 
-    // Hapus kursi lama
     await conn.execute("DELETE FROM ticket_seats WHERE ticket_id = ?", [id]);
 
-    // Tambah kursi baru
     for (const seat_label of seats) {
       const [seatRows]: any = await conn.execute(
         "SELECT seat_id FROM seats WHERE seat_label = ?",
@@ -155,7 +149,6 @@ export const deleteTicket = async (req: Request, res: Response) => {
   }
 };
 
-/** ✅ GET ALL SEATS */
 export const getAllSeats = async (_req: Request, res: Response) => {
   try {
     const [rows] = await pool.execute("SELECT seat_label FROM seats");
@@ -165,7 +158,6 @@ export const getAllSeats = async (_req: Request, res: Response) => {
   }
 };
 
-/** ✅ GET BOOKED SEATS BY MOVIE & TIME */
 export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
   const { title, show_time } = req.query;
 
