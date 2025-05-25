@@ -147,7 +147,8 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
   const { title, show_time } = req.query;
 
   if (!title || !show_time) {
-    return res.status(400).json({ error: "Missing title or show_time" });
+    res.status(400).json({ error: "Missing title or show_time" });
+    return;
   }
 
   try {
