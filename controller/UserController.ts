@@ -3,19 +3,6 @@ import { PrismaClient } from "../generated/prisma";
 
 const prisma = new PrismaClient();
 
-/** Utility: Convert "12:00" → Date object on today */
-const toTodayDateTime = (timeString: string) => {
-  const [hour, minute] = timeString.split(":");
-  const now = new Date();
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    parseInt(hour),
-    parseInt(minute)
-  );
-};
-
 export const getAllTickets = async (_req: Request, res: Response) => {
   try {
     const tickets = await prisma.ticket.findMany({
@@ -42,7 +29,6 @@ export const getAllTickets = async (_req: Request, res: Response) => {
 
 export const getTicketsByUser = async (req: Request, res: Response) => {
   const { userId } = req.params;
-
   try {
     const tickets = await prisma.ticket.findMany({
       where: { userId },
@@ -71,13 +57,11 @@ export const createTickets = async (req: Request, res: Response) => {
   const { user_id, movie_title, show_time, seats, price } = req.body;
 
   try {
-    const showDate = toTodayDateTime(show_time);
-
     const ticket = await prisma.ticket.create({
       data: {
         userId: user_id,
         movieTitle: movie_title,
-        showTime: showDate,
+        showTime: new Date(show_time),
         price,
         seats: {
           create: await Promise.all(
@@ -105,15 +89,15 @@ export const updateTicket = async (req: Request, res: Response) => {
   const { movie_title, show_time, price, seats } = req.body;
 
   try {
-    const showDate = toTodayDateTime(show_time);
-
     await prisma.ticket.update({
       where: { id: Number(id) },
       data: {
         movieTitle: movie_title,
-        showTime: showDate,
+        showTime: new Date(show_time),
         price,
-        seats: { deleteMany: {} },
+        seats: {
+          deleteMany: {},
+        },
       },
     });
 
@@ -167,13 +151,17 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
   }
 
   try {
-    const showDate = toTodayDateTime(String(show_time));
+    const hour = parseInt(String(show_time).split(":")[0]);
+    const minute = parseInt(String(show_time).split(":")[1]);
 
     const seats = await prisma.ticketSeat.findMany({
       where: {
         ticket: {
           movieTitle: String(title),
-          showTime: showDate,
+          showTime: {
+            gte: new Date(2000, 0, 1, hour, minute),
+            lt: new Date(2000, 0, 1, hour, minute + 1),
+          },
         },
       },
       include: {
@@ -183,7 +171,6 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
 
     res.json({ data: seats.map((s) => s.seat.seatLabel) });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: "Failed to fetch booked seats" });
   }
 };
