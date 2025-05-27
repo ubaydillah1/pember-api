@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "../generated/prisma";
+import supabase from "../config/supabase";
+import { v4 } from "uuid";
 
 const prisma = new PrismaClient();
 
@@ -230,5 +232,93 @@ export const getAllBookedSeatsByTitleAndTime = async (
   } catch (err) {
     console.error("🔥 ERROR fetching all booked seats:", err);
     res.status(500).json({ error: "Failed to fetch booked seats" });
+  }
+};
+
+export const uploadFeedback = async (req: Request, res: Response) => {
+  const userId = req.body?.userId;
+  const title = req.body?.title;
+  const desctiption = req.body?.desctiption;
+  const location = req.body?.location;
+  const rating = req.body?.rating;
+
+  const file = req.file;
+
+  if (!userId || !title || !desctiption || !location || !rating || !file) {
+    res.status(400).json({
+      message:
+        "Form belum lengkap. Pastikan semua kolom dan gambar sudah diisi.",
+      missing: {
+        userId: !userId,
+        title: !title,
+        desctiption: !desctiption,
+        location: !location,
+        rating: !rating,
+        image: !file,
+      },
+    });
+    return;
+  }
+
+  if (!file) {
+    res.status(400).json({ message: "No file uploaded" });
+    return;
+  }
+
+  try {
+    const fileName = `${v4()}_${file.originalname}`;
+    const { error: uploadError } = await supabase.storage
+      .from("feedback-images")
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      res.status(500).json({
+        message: "Upload to Supabase failed",
+        error: uploadError.message,
+      });
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("feedback-images")
+      .getPublicUrl(fileName);
+
+    const imageUrl = publicUrlData.publicUrl;
+
+    const feedback = await prisma.feedback.create({
+      data: {
+        userId,
+        title,
+        desctiption,
+        location,
+        rating,
+        image: imageUrl,
+      },
+    });
+
+    res.status(201).json({ message: "Feedback uploaded", feedback });
+  } catch (error: any) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getAllFeedback = async (req: Request, res: Response) => {
+  try {
+    const data = await prisma.feedback.findMany({
+      orderBy: {
+        created_at: "desc",
+      },
+    });
+
+    res.json({
+      data,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Server error", error: (error as Error).message });
   }
 };

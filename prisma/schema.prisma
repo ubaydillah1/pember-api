@@ -37,4 +37,13 @@ model TicketSeat {
   seatId   Int
 }
 
-
+model Feedback {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  title       String
+  desctiption String
+  location    String
+  image       String
+  rating      String
+  created_at  DateTime @default(now())
+}

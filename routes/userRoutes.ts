@@ -8,7 +8,10 @@ import {
   updateTicket,
   getBookedSeatsByShowtime,
   getAllBookedSeatsByTitleAndTime,
+  uploadFeedback,
+  getAllFeedback,
 } from "../controller/UserController";
+import upload from "../middleware/upload";
 
 const router = express.Router();
 
@@ -20,5 +23,10 @@ router.delete("/tickets/:id", deleteTicket);
 router.get("/seats", getAllSeats);
 router.get("/tickets/booked", getBookedSeatsByShowtime);
 router.get("/tickets/booked/strict", getAllBookedSeatsByTitleAndTime);
+
+// feedback
+router.post("/feedback", upload.single("image"), uploadFeedback);
+
+router.get("/feedbacks", getAllFeedback);
 
 export default router;

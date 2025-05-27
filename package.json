@@ -21,6 +21,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.18",
     "@types/express": "^5.0.1",
+    "@types/multer": "^1.4.12",
     "@types/node": "^22.15.18",
     "prisma": "^6.8.2",
     "ts-node": "^10.9.2",
@@ -28,8 +29,11 @@
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
+    "@supabase/supabase-js": "^2.49.8",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "mysql2": "^3.14.1"
+    "multer": "^2.0.0",
+    "mysql2": "^3.14.1",
+    "uuid": "^11.1.0"
   }
 }
