@@ -56,45 +56,54 @@ export const getTicketsByUser = async (req: Request, res: Response) => {
 };
 
 export const createTickets = async (req: Request, res: Response) => {
-  console.log(req.body);
   const { user_id, movie_title, show_time, seats, price } = req.body;
 
-  const now = new Date();
-  const parts = show_time.split(":");
-  const fullDate = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    parseInt(parts[0]),
-    parseInt(parts[1])
-  );
-
   try {
+    const seatRecords = await Promise.all(
+      seats.map(async (label: string) => {
+        const seat = await prisma.seat.findUnique({
+          where: { seatLabel: label },
+        });
+        if (!seat) throw new Error(`Seat ${label} not found`);
+        return seat;
+      })
+    );
+
+    const conflict = await prisma.ticket.findMany({
+      where: {
+        movieTitle: movie_title,
+        showTime: show_time,
+        seats: {
+          some: {
+            seatId: { in: seatRecords.map((s) => s.id) },
+          },
+        },
+      },
+    });
+
+    if (conflict.length > 0) {
+      res.status(400).json({ message: "Some seats are already booked" });
+      return;
+    }
+
+    // Buat tiket jika aman
     const ticket = await prisma.ticket.create({
       data: {
         userId: user_id,
         movieTitle: movie_title,
-        showTime: fullDate,
+        showTime: show_time,
         price,
         seats: {
-          create: await Promise.all(
-            seats.map(async (label: string) => {
-              const seat = await prisma.seat.findUnique({
-                where: { seatLabel: label },
-              });
-              if (!seat) throw new Error(`Seat ${label} not found`);
-              return { seatId: seat.id };
-            })
-          ),
+          create: seatRecords.map((s) => ({ seatId: s.id })),
         },
       },
     });
 
     res.status(201).json({ message: "Ticket created", ticket_id: ticket.id });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({
-      error: "Failed to create ticketssssssss",
+      error: "Failed to create ticket",
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -105,11 +114,38 @@ export const updateTicket = async (req: Request, res: Response) => {
   const { movie_title, show_time, price, seats } = req.body;
 
   try {
+    const seatRecords = await prisma.seat.findMany({
+      where: { seatLabel: { in: seats } },
+    });
+
+    if (seatRecords.length !== seats.length) {
+      res.status(400).json({ message: "One or more seats not found" });
+      return;
+    }
+
+    const conflict = await prisma.ticket.findMany({
+      where: {
+        movieTitle: movie_title,
+        showTime: show_time,
+        id: { not: Number(id) },
+        seats: {
+          some: {
+            seatId: { in: seatRecords.map((s) => s.id) },
+          },
+        },
+      },
+    });
+
+    if (conflict.length > 0) {
+      res.status(400).json({ message: "Some seats are already booked" });
+      return;
+    }
+
     await prisma.ticket.update({
       where: { id: Number(id) },
       data: {
         movieTitle: movie_title,
-        showTime: new Date(show_time),
+        showTime: show_time,
         price,
         seats: {
           deleteMany: {},
@@ -118,21 +154,19 @@ export const updateTicket = async (req: Request, res: Response) => {
     });
 
     await prisma.ticketSeat.createMany({
-      data: await Promise.all(
-        seats.map(async (label: string) => {
-          const seat = await prisma.seat.findUnique({
-            where: { seatLabel: label },
-          });
-          if (!seat) throw new Error(`Seat ${label} not found`);
-          return { ticketId: Number(id), seatId: seat.id };
-        })
-      ),
+      data: seatRecords.map((s) => ({
+        ticketId: Number(id),
+        seatId: s.id,
+      })),
     });
 
     res.json({ message: "Ticket updated successfully" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update ticket" });
+    console.error("❌ Error updating ticket:", err);
+    res.status(500).json({
+      error: "Failed to update ticket",
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 };
 
@@ -152,7 +186,10 @@ export const deleteTicket = async (req: Request, res: Response) => {
 
 export const getAllSeats = async (_req: Request, res: Response) => {
   try {
-    const seats = await prisma.seat.findMany({ select: { seatLabel: true } });
+    const seats = await prisma.seat.findMany({
+      select: { seatLabel: true },
+      orderBy: { seatLabel: "asc" },
+    });
     res.json({ data: seats });
   } catch (err) {
     res.status(500).json({ error: "Failed to get seats" });
@@ -168,29 +205,26 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
   }
 
   try {
-    const [hourStr, minuteStr] = String(show_time).split(":");
-    const hour = parseInt(hourStr);
-    const minute = parseInt(minuteStr);
-    const excludeId = exclude ? parseInt(String(exclude)) : null;
+    const seats = await prisma.ticket.findMany({
+      where: {
+        movieTitle: String(title),
+        showTime: String(show_time),
+        ...(exclude ? { id: { not: parseInt(String(exclude)) } } : {}),
+      },
+      select: {
+        seats: {
+          select: {
+            seat: { select: { seatLabel: true } },
+          },
+        },
+      },
+    });
 
-    const seats = await prisma.$queryRawUnsafe(
-      `
-      SELECT s."seatLabel"
-      FROM "Ticket" t
-      JOIN "TicketSeat" ts ON t.id = ts."ticketId"
-      JOIN "Seat" s ON ts."seatId" = s.id
-      WHERE t."movieTitle" = $1
-        AND EXTRACT(HOUR FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $2
-        AND EXTRACT(MINUTE FROM t."showTime" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') = $3
-        AND ($4::int IS NULL OR t.id != $4)
-      `,
-      title,
-      hour,
-      minute,
-      excludeId
+    const seatLabels = seats.flatMap((t) =>
+      t.seats.map((s) => s.seat.seatLabel)
     );
 
-    res.json({ data: seats });
+    res.json({ data: seatLabels });
   } catch (err) {
     console.error("🔥 ERROR fetching booked seats:", err);
     res.status(500).json({ error: "Failed to fetch booked seats" });

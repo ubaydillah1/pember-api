@@ -18,7 +18,8 @@ model Ticket {
   id         Int          @id @default(autoincrement())
   userId     String
   movieTitle String
-  showTime   DateTime
+  createdAt  DateTime     @default(now())
+  showTime   String
   price      Float
   seats      TicketSeat[]
 }
