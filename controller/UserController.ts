@@ -208,9 +208,7 @@ export const getBookedSeatsByShowtime = async (req: Request, res: Response) => {
     const seats = await prisma.ticket.findMany({
       where: {
         movieTitle: String(title),
-        showTime: {
-          endsWith: String(show_time), // hanya cocokkan akhir string seperti '12:00'
-        },
+        showTime: String(show_time),
       },
       select: {
         seats: {
