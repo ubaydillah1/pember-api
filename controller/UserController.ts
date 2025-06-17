@@ -368,7 +368,7 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
     const formatted = logs.map((log) => {
       return {
         movie_title: log.movieTitle,
-        show_time: formatShowTime(log.createdAt, log.showTime),
+        show_time: formatOnlyDateTime(log.createdAt),
         seats: log.seats,
         total: log.price,
         status: log.status === "Booked" ? "SUKSES" : "DIBATALKAN",
@@ -382,10 +382,13 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
   }
 };
 
-function formatShowTime(createdAt: Date, showTime: string): string {
-  const date = new Date(createdAt);
+function formatOnlyDateTime(dateTime: Date): string {
+  const date = new Date(dateTime);
   const day = date.getDate().toString().padStart(2, "0");
   const month = date.toLocaleString("en-US", { month: "short" });
   const year = date.getFullYear();
-  return `${day} ${month} ${year} • ${showTime}`;
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+
+  return `${day} ${month} ${year} • ${hours}:${minutes}`;
 }
