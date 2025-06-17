@@ -360,30 +360,18 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
   const { userId } = req.params;
 
   try {
-    const tickets = await prisma.ticket.findMany({
+    const logs = await prisma.ticketLogs.findMany({
       where: { userId },
-      include: {
-        TicketLogs: {
-          orderBy: { id: "desc" },
-          take: 1,
-        },
-        seats: {
-          include: { seat: true },
-        },
-      },
       orderBy: { createdAt: "desc" },
     });
 
-    const formatted = tickets.map((t) => {
-      const latestLog = t.TicketLogs?.[0];
-      const statusEnum = latestLog?.status ?? "Booked";
-
+    const formatted = logs.map((log) => {
       return {
-        movie_title: t.movieTitle,
-        show_time: formatShowTime(t.createdAt, t.showTime),
-        seats: (t.seats ?? []).map((s) => s.seat?.seatLabel ?? "N/A"),
-        total: t.price ?? 0,
-        status: statusEnum === "Booked" ? "SUKSES" : "DIBATALKAN",
+        movie_title: log.movieTitle,
+        show_time: formatShowTime(log.createdAt, log.showTime),
+        seats: log.seats,
+        total: log.price,
+        status: log.status === "Booked" ? "SUKSES" : "DIBATALKAN",
       };
     });
 

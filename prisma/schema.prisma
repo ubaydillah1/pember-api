@@ -38,6 +38,7 @@ model TicketLogs {
   seats      String[]
   price      Float
   createdAt  DateTime @default(now())
+  userId     String?
   Ticket     Ticket?  @relation(fields: [ticketId], references: [id])
   ticketId   Int?
 }
