@@ -355,3 +355,47 @@ export const getAllFeedback = async (req: Request, res: Response) => {
       .json({ message: "Server error", error: (error as Error).message });
   }
 };
+
+export const getTicketLogsByUser = async (req: Request, res: Response) => {
+  const { userId } = req.params;
+
+  try {
+    const tickets = await prisma.ticket.findMany({
+      where: { userId },
+      include: {
+        TicektLogs: {
+          orderBy: { id: "desc" },
+          take: 1,
+        },
+        seats: {
+          include: { seat: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const formatted = tickets.map((t) => {
+      const statusEnum = t.TicektLogs[0]?.status || "Booked";
+      return {
+        movie_title: t.movieTitle,
+        show_time: formatShowTime(t.createdAt, t.showTime),
+        seats: t.seats.map((s) => s.seat.seatLabel),
+        total: t.price,
+        status: statusEnum === "Booked" ? "SUKSES" : "DIBATALKAN",
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("❌ Failed to fetch ticket logs by user:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+function formatShowTime(createdAt: Date, showTime: string): string {
+  const date = new Date(createdAt);
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const year = date.getFullYear();
+  return `${day} ${month} ${year} • ${showTime}`;
+}

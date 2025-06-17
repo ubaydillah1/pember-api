@@ -10,6 +10,7 @@ import {
   getAllBookedSeatsByTitleAndTime,
   uploadFeedback,
   getAllFeedback,
+  getTicketLogsByUser,
 } from "../controller/UserController";
 import upload from "../middleware/upload";
 
@@ -23,6 +24,7 @@ router.delete("/tickets/:id", deleteTicket);
 router.get("/seats", getAllSeats);
 router.get("/tickets/booked", getBookedSeatsByShowtime);
 router.get("/tickets/booked/strict", getAllBookedSeatsByTitleAndTime);
+router.get("/users/:userId/ticket-logs", getTicketLogsByUser);
 
 // feedback
 router.post("/feedback", upload.single("image"), uploadFeedback);
