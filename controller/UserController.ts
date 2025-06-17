@@ -363,7 +363,7 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
     const tickets = await prisma.ticket.findMany({
       where: { userId },
       include: {
-        TicektLogs: {
+        TicketLogs: {
           orderBy: { id: "desc" },
           take: 1,
         },
@@ -375,7 +375,7 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
     });
 
     const formatted = tickets.map((t) => {
-      const statusEnum = t.TicektLogs?.[0]?.status || "Booked";
+      const statusEnum = t.TicketLogs?.[0]?.status || "Booked";
 
       return {
         movie_title: t.movieTitle,

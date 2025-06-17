@@ -27,10 +27,10 @@ model Ticket {
   showTime   String
   price      Float
   seats      TicketSeat[]
-  TicektLogs TicektLogs[]
+  TicketLogs TicketLogs[]
 }
 
-model TicektLogs {
+model TicketLogs {
   id         Int      @id @default(autoincrement())
   status     Status   @default(Booked)
   movieTitle String
