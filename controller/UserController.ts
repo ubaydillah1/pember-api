@@ -375,13 +375,14 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
     });
 
     const formatted = tickets.map((t) => {
-      const statusEnum = t.TicketLogs?.[0]?.status || "Booked";
+      const latestLog = t.TicketLogs?.[0];
+      const statusEnum = latestLog?.status ?? "Booked";
 
       return {
         movie_title: t.movieTitle,
         show_time: formatShowTime(t.createdAt, t.showTime),
-        seats: t.seats.map((s) => s.seat?.seatLabel ?? "N/A"),
-        total: t.price,
+        seats: (t.seats ?? []).map((s) => s.seat?.seatLabel ?? "N/A"),
+        total: t.price ?? 0,
         status: statusEnum === "Booked" ? "SUKSES" : "DIBATALKAN",
       };
     });
