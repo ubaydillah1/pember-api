@@ -375,17 +375,18 @@ export const getTicketLogsByUser = async (req: Request, res: Response) => {
     });
 
     const formatted = tickets.map((t) => {
-      const statusEnum = t.TicektLogs[0]?.status || "Booked";
+      const statusEnum = t.TicektLogs?.[0]?.status || "Booked";
+
       return {
         movie_title: t.movieTitle,
         show_time: formatShowTime(t.createdAt, t.showTime),
-        seats: t.seats.map((s) => s.seat.seatLabel),
+        seats: t.seats.map((s) => s.seat?.seatLabel ?? "N/A"),
         total: t.price,
         status: statusEnum === "Booked" ? "SUKSES" : "DIBATALKAN",
       };
     });
 
-    res.json(formatted);
+    res.json({ data: formatted });
   } catch (err) {
     console.error("❌ Failed to fetch ticket logs by user:", err);
     res.status(500).json({ error: "Internal server error" });

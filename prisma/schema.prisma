@@ -31,10 +31,15 @@ model Ticket {
 }
 
 model TicektLogs {
-  id       Int    @id @default(autoincrement())
-  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  status   Status @default(Booked)
-  ticketId Int
+  id         Int      @id @default(autoincrement())
+  status     Status   @default(Booked)
+  movieTitle String
+  showTime   String
+  seats      String
+  price      Float
+  createdAt  DateTime @default(now())
+  Ticket     Ticket?  @relation(fields: [ticketId], references: [id])
+  ticketId   Int?
 }
 
 model Seat {
